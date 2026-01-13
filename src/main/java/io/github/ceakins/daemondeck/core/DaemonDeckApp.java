@@ -17,13 +17,21 @@ import java.util.StringTokenizer;
 
 public class DaemonDeckApp {
 
-    private static final ConfigStore configStore = ConfigStore.getInstance();
-    private static final DiscordService discordService = new DiscordService(configStore);
+    private final ConfigStore configStore;
+    private final DiscordService discordService;
+    public final io.javalin.Javalin app;
 
-    public static void main(String[] args) {
-        Javalin app = Javalin.create(config -> {
+    public DaemonDeckApp() {
+        this(ConfigStore.getInstance(), new DiscordService(ConfigStore.getInstance()));
+    }
+
+    public DaemonDeckApp(ConfigStore configStore, DiscordService discordService) {
+        this.configStore = configStore;
+        this.discordService = discordService;
+
+        app = Javalin.create(config -> {
             config.fileRenderer(new JavalinThymeleaf());
-        }).start(7070);
+        });
 
         // Start all bots
         discordService.startAllBots();
@@ -135,5 +143,18 @@ public class DaemonDeckApp {
             discordService.deleteBot(ctx.pathParam("name"));
             ctx.status(HttpStatus.NO_CONTENT);
         });
+    }
+
+    public static void main(String[] args) {
+        DaemonDeckApp daemonDeckApp = new DaemonDeckApp();
+        daemonDeckApp.start(7070);
+    }
+
+    public void start(int port) {
+        app.start(port);
+    }
+
+    public void stop() {
+        app.stop();
     }
 }
