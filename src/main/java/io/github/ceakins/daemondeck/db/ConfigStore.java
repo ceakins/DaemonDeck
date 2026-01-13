@@ -20,6 +20,12 @@ public class ConfigStore {
     private static final String WEBHOOKS_MAP = "webhooks";
     private static final String BOTS_MAP = "bots";
 
+    // For testing
+    ConfigStore(MVStore store, ObjectMapper objectMapper) {
+        this.store = store;
+        this.objectMapper = objectMapper;
+    }
+
     private ConfigStore() {
         this.store = MVStore.open("daemondeck.db");
         this.objectMapper = new ObjectMapper();
