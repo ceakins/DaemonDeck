@@ -8,9 +8,6 @@ import io.javalin.Javalin;
 import io.javalin.http.HttpStatus;
 import io.javalin.rendering.template.JavalinThymeleaf;
 import org.springframework.security.crypto.bcrypt.BCrypt;
-import org.thymeleaf.TemplateEngine;
-import org.thymeleaf.templatemode.TemplateMode;
-import org.thymeleaf.templateresolver.ClassLoaderTemplateResolver;
 
 import java.util.Base64;
 import java.util.Collections;
@@ -25,13 +22,7 @@ public class DaemonDeckApp {
 
     public static void main(String[] args) {
         Javalin app = Javalin.create(config -> {
-            ClassLoaderTemplateResolver templateResolver = new ClassLoaderTemplateResolver();
-            templateResolver.setTemplateMode(TemplateMode.HTML);
-            templateResolver.setPrefix("/templates/");
-            templateResolver.setSuffix(".html");
-            TemplateEngine templateEngine = new TemplateEngine();
-            templateEngine.setTemplateResolver(templateResolver);
-            JavalinThymeleaf.init(templateEngine);
+            config.fileRenderer(new JavalinThymeleaf());
         }).start(7070);
 
         // Start all bots
@@ -86,7 +77,7 @@ public class DaemonDeckApp {
                 ctx.redirect("/", HttpStatus.FOUND);
                 return;
             }
-            ctx.render("Setup.html", Map.of("title", "DaemonDeck Setup"));
+            ctx.render("templates/Setup.html", Map.of("title", "DaemonDeck Setup"));
         });
 
         app.post("/setup", ctx -> {
@@ -118,7 +109,7 @@ public class DaemonDeckApp {
         });
 
         // Authenticated routes
-        app.get("/", ctx -> ctx.render("index.html", Map.of("title", "Welcome")));
+        app.get("/", ctx -> ctx.render("templates/index.html", Map.of("title", "Welcome")));
 
         // Discord Webhook routes
         app.get("/api/discord/webhooks", ctx -> ctx.json(discordService.getAllWebhooks()));
