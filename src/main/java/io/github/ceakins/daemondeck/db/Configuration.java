@@ -1,13 +1,16 @@
 package io.github.ceakins.daemondeck.db;
 
+import org.dizitart.no2.collection.NitriteId;
+import org.dizitart.no2.repository.annotations.Entity;
 import org.dizitart.no2.repository.annotations.Id;
 
 import java.util.Set;
 
+@Entity
 public class Configuration {
 
     @Id
-    private long id;
+    private NitriteId id;
     private String adminUsername;
     private String adminPasswordHash;
     private String steamCmdPath;
@@ -16,11 +19,11 @@ public class Configuration {
     public Configuration() {
     }
 
-    public long getId() {
+    public NitriteId getId() {
         return id;
     }
 
-    public void setId(long id) {
+    public void setId(NitriteId id) {
         this.id = id;
     }
 

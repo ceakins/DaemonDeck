@@ -1,6 +1,7 @@
 package io.github.ceakins.daemondeck.db;
 
 import org.dizitart.no2.Nitrite;
+import org.dizitart.no2.mvstore.MVStoreModule;
 import org.dizitart.no2.repository.ObjectRepository;
 
 import java.util.Optional;
@@ -12,8 +13,12 @@ public class ConfigStore {
     private final ObjectRepository<Configuration> configRepository;
 
     private ConfigStore() {
+        MVStoreModule storeModule = MVStoreModule.withConfig()
+                .filePath("daemondeck.db")
+                .build();
+
         this.db = Nitrite.builder()
-                .file("daemondeck.db")
+                .loadModule(storeModule)
                 .openOrCreate();
         this.configRepository = db.getRepository(Configuration.class);
     }
@@ -26,12 +31,13 @@ public class ConfigStore {
     }
 
     public Optional<Configuration> getConfiguration() {
-        return Optional.ofNullable(configRepository.find().firstOrDefault());
+        return configRepository.find().toList().stream().findFirst();
     }
 
     public void saveConfiguration(Configuration config) {
-        if (configRepository.find().totalCount() > 0) {
-            config.setId(configRepository.find().firstOrDefault().getId());
+        Optional<Configuration> existingConfig = getConfiguration();
+        if (existingConfig.isPresent()) {
+            config.setId(existingConfig.get().getId());
             configRepository.update(config);
         } else {
             configRepository.insert(config);
@@ -39,7 +45,7 @@ public class ConfigStore {
     }
 
     public boolean isConfigured() {
-        return configRepository.find().totalCount() > 0;
+        return configRepository.size() > 0;
     }
 
     public void close() {
