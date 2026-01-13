@@ -6,10 +6,15 @@ import io.github.ceakins.daemondeck.db.DiscordBot;
 import io.github.ceakins.daemondeck.db.DiscordWebhook;
 import io.javalin.Javalin;
 import io.javalin.http.HttpStatus;
+import io.javalin.rendering.template.JavalinThymeleaf;
 import org.springframework.security.crypto.bcrypt.BCrypt;
+import org.thymeleaf.TemplateEngine;
+import org.thymeleaf.templatemode.TemplateMode;
+import org.thymeleaf.templateresolver.ClassLoaderTemplateResolver;
 
 import java.util.Base64;
 import java.util.Collections;
+import java.util.Map;
 import java.util.Optional;
 import java.util.StringTokenizer;
 
@@ -20,7 +25,13 @@ public class DaemonDeckApp {
 
     public static void main(String[] args) {
         Javalin app = Javalin.create(config -> {
-            // configuration here, if needed
+            ClassLoaderTemplateResolver templateResolver = new ClassLoaderTemplateResolver();
+            templateResolver.setTemplateMode(TemplateMode.HTML);
+            templateResolver.setPrefix("/templates/");
+            templateResolver.setSuffix(".html");
+            TemplateEngine templateEngine = new TemplateEngine();
+            templateEngine.setTemplateResolver(templateResolver);
+            JavalinThymeleaf.init(templateEngine);
         }).start(7070);
 
         // Start all bots
@@ -64,7 +75,7 @@ public class DaemonDeckApp {
 
             Configuration config = configStore.getConfiguration().orElseThrow();
             if (!config.getAdminUsername().equals(username) || !BCrypt.checkpw(password, config.getAdminPasswordHash())) {
-                ctx.header("WWW-Authenticate", "Basic").status(HttpStatus.UNAUTHORIZED);
+                ctx.header("WWW-authenticate", "Basic").status(HttpStatus.UNAUTHORIZED);
             }
         });
 
@@ -75,8 +86,7 @@ public class DaemonDeckApp {
                 ctx.redirect("/", HttpStatus.FOUND);
                 return;
             }
-            // In a real app, you'd use a template engine. For simplicity, we'll inline it.
-            ctx.html(new String(DaemonDeckApp.class.getResourceAsStream("/Setup.html").readAllBytes()));
+            ctx.render("Setup.html", Map.of("title", "DaemonDeck Setup"));
         });
 
         app.post("/setup", ctx -> {
@@ -108,7 +118,7 @@ public class DaemonDeckApp {
         });
 
         // Authenticated routes
-        app.get("/", ctx -> ctx.html("<h1>Welcome to DaemonDeck!</h1>"));
+        app.get("/", ctx -> ctx.render("index.html", Map.of("title", "Welcome")));
 
         // Discord Webhook routes
         app.get("/api/discord/webhooks", ctx -> ctx.json(discordService.getAllWebhooks()));
