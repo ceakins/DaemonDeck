@@ -9,9 +9,15 @@ import java.nio.file.Path;
 public class SteamManager {
 
     private final ConfigStore configStore;
+    private final ProcessBuilder processBuilder;
 
     public SteamManager(ConfigStore configStore) {
+        this(configStore, new ProcessBuilder());
+    }
+
+    public SteamManager(ConfigStore configStore, ProcessBuilder processBuilder) {
         this.configStore = configStore;
+        this.processBuilder = processBuilder;
     }
 
     public void installOrUpdateGame(String appId, String installDir) throws IOException, InterruptedException {
@@ -19,7 +25,7 @@ public class SteamManager {
                 .orElseThrow(() -> new IllegalStateException("Application is not configured."));
 
         Path steamCmdPath = Path.of(config.getSteamCmdPath());
-        ProcessBuilder processBuilder = new ProcessBuilder(
+        processBuilder.command(
                 steamCmdPath.toString(),
                 "+login", "anonymous",
                 "+app_update", appId,

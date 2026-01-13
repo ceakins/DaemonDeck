@@ -4,6 +4,7 @@
         <classes>
             <class name="io.github.ceakins.daemondeck.db.ConfigStoreTest" />
             <class name="io.github.ceakins.daemondeck.core.DiscordServiceTest" />
+            <class name="io.github.ceakins.daemondeck.util.SteamManagerTest" />
         </classes>
     </test>
 </suite>
