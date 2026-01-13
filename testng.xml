@@ -5,6 +5,8 @@
             <class name="io.github.ceakins.daemondeck.db.ConfigStoreTest" />
             <class name="io.github.ceakins.daemondeck.core.DiscordServiceTest" />
             <class name="io.github.ceakins.daemondeck.util.SteamManagerTest" />
+            <class name="io.github.ceakins.daemondeck.util.TelnetClientManagerTest" />
+            <class name="io.github.ceakins.daemondeck.util.RCONClientManagerTest" />
         </classes>
     </test>
 </suite>

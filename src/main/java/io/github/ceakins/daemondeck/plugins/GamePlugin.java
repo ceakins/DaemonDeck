@@ -11,7 +11,5 @@ public interface GamePlugin {
 
     void stopServer() throws IOException;
 
-    String sendCommand(String command) throws IOException;
-
     String getBotName();
 }
