@@ -4,25 +4,25 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
+        /* New styles to allow content to flow naturally and center the main container */
         body {
             font-family: Arial, sans-serif;
             background-color: #f4f4f4;
             margin: 0;
             display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
+            flex-direction: column; /* Allow content to stack vertically */
+            min-height: 100vh; /* Ensure body takes full viewport height */
             color: #333;
         }
-        .container {
+        .main-content-container { /* New container for the form to manage its width */
             background-color: #fff;
             padding: 40px;
             border-radius: 8px;
             box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
             text-align: center;
-            width: 90%;
-            max-width: 400px;
+            /* max-width is now handled by col-md-8 */
         }
         h1 {
             color: #333;
@@ -64,17 +64,36 @@
         }
     </style>
 </head>
-<body>
-    <div class="container">
-        <h1>Login to Game Daemon Deck</h1>
-        <p th:if="${message}" class="error" th:text="${message}"></p>
-        <form action="/login" method="post">
-            <label for="username">Username:</label>
-            <input type="text" id="username" name="username" required>
-            <label for="password">Password:</label>
-            <input type="password" id="password" name="password" required>
-            <button type="submit">Login</button>
-        </form>
+<body class="d-flex flex-column min-vh-100">
+    <div class="row justify-content-center mt-4">
+        <div class="col-md-8" style="border: 2px solid red; padding: 10px;">
+            <header class="d-flex justify-content-center py-3">
+                <h1>Login to Game Daemon Deck</h1>
+            </header>
+        </div>
+    </div>
+    <div class="container flex-grow-1">
+        <div class="row justify-content-center">
+            <div class="col-md-8 main-content-container"> <!-- Added new class here -->
+                <p th:if="${message}" class="error" th:text="${message}"></p>
+                <form action="/login" method="post">
+                    <label for="username">Username:</label>
+                    <input type="text" id="username" name="username" required>
+                    <label for="password">Password:</label>
+                    <input type="password" id="password" name="password" required>
+                    <button type="submit">Login</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="row justify-content-center mt-4">
+        <div class="col-md-8" style="border: 2px solid red; padding: 10px;">
+            <footer class="footer mt-auto py-3 bg-light">
+                <div class="container">
+                    <p class="text-center text-muted">© Charles L. Eakins, 2026</p>
+                </div>
+            </footer>
+        </div>
     </div>
 </body>
 </html>
