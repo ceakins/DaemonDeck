@@ -102,9 +102,23 @@
             });
 
             document.getElementById('stayLoggedInButton').addEventListener('click', () => {
-                resetTimer();
-                // Optionally, make an AJAX call to extend the server-side session
-                // For now, just resetting the client-side timer
+                fetch('/api/session/renew', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                }).then(response => {
+                    if (response.ok) {
+                        resetTimer();
+                    } else if (response.status === 401) {
+                        // Unauthorized, likely session expired on server or credentials invalid
+                        logout();
+                    } else {
+                        console.error('Failed to renew session:', response.statusText);
+                    }
+                }).catch(error => {
+                    console.error('Error renewing session:', error);
+                });
             });
 
             document.getElementById('logoutButton').addEventListener('click', () => {

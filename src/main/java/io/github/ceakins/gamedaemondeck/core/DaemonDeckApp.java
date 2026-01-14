@@ -164,6 +164,19 @@ public class DaemonDeckApp {
             discordService.deleteBot(ctx.pathParam("name"));
             ctx.status(HttpStatus.NO_CONTENT);
         });
+
+        // Session Management routes
+        app.post("/api/session/renew", ctx -> {
+            // If the request reaches here, it means Basic Auth was successful,
+            // implicitly renewing the "session" from the server's perspective.
+            ctx.status(HttpStatus.OK).result("Session renewed.");
+        });
+
+        app.get("/logout", ctx -> {
+            // For Basic Auth, logging out is primarily handled client-side by clearing credentials.
+            // On the server, we can simply instruct the client to clear them.
+            ctx.header("WWW-Authenticate", "Basic realm=\"DaemonDeck\"").status(HttpStatus.UNAUTHORIZED).redirect("/login", HttpStatus.FOUND);
+        });
     }
 
     public static void main(String[] args) {
