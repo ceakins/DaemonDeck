@@ -1,4 +1,8 @@
-# GameDaemonDeck
+# Game Daemon Deck
+
+## Screenshots
+
+![Dashboard Screenshot](docs/images/screenshot_dashboard.png)
 
 A simple, lightweight, and extensible game server manager.
 
