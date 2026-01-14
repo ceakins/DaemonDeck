@@ -62,29 +62,38 @@
         .modal-backdrop {
             background-color: rgba(0, 0, 0, 0.5);
         }
+        .gdd-logo-circle {
+            width: 30px; /* Enforce square shape */
+            height: 30px; /* Enforce square shape */
+            display: flex; /* Use flexbox for centering content */
+            justify-content: center; /* Center horizontally */
+            align-items: center; /* Center vertically */
+        }
     </style>
 </head>
 <body>
     <div class="container-fluid">
         <!-- Navigation Bar -->
-        <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom border-light"> <!-- Changed to light background, removed navbar-dark, added light gray bottom border -->
             <div class="container-fluid">
-                <a class="navbar-brand" href="/">
-                    <img src="/static/bootstrap-icons/controller.svg" alt="GDD Logo" width="30" height="24" class="d-inline-block align-text-top">
-                    Game Daemon Deck
+                <a class="navbar-brand d-flex align-items-center" href="/"> <!-- Added d-flex align-items-center for vertical alignment -->
+                    <span class="p-1 me-2 gdd-logo-circle" style="background-color: #007bff; border-radius: 50%;"> <!-- Blue circle background -->
+                        <img src="/static/bootstrap-icons/controller.svg" alt="GDD Logo" width="20" height="20" class="d-inline-block" style="filter: invert(100%);"> <!-- White icon -->
+                    </span>
+                    <strong class="text-black">Game Daemon Deck</strong> <!-- Bold and black text -->
                 </a>
                 <div class="collapse navbar-collapse" id="navbarNav">
                     <ul class="navbar-nav me-auto mb-2 mb-lg-0">
                         <li class="nav-item">
-                            <a class="nav-link active" aria-current="page" href="/">Dashboard</a>
+                            <a class="nav-link active text-dark" aria-current="page" href="/">Dashboard</a> <!-- Changed text color to dark -->
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" href="#">Logs</a>
+                            <a class="nav-link text-dark" href="#">Logs</a> <!-- Changed text color to dark -->
                         </li>
                     </ul>
                     <ul class="navbar-nav">
                         <li class="nav-item">
-                            <a class="btn btn-outline-secondary d-flex align-items-center" href="/settings">
+                            <a class="btn btn-outline-secondary d-flex align-items-center text-dark" href="/settings"> <!-- Changed text color to dark -->
                                 <i class="bi bi-gear me-1"></i> Settings
                             </a>
                         </li>
