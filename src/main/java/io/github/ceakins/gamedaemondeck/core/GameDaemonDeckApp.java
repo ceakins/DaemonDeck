@@ -32,6 +32,12 @@ public class GameDaemonDeckApp {
 
         app = Javalin.create(config -> {
             config.fileRenderer(new JavalinThymeleaf());
+            config.staticFiles.add(staticFileConfig -> {
+                staticFileConfig.directory = "/static"; // Serves files from src/main/resources/static
+                staticFileConfig.hostedPath = "/static"; // Hosted at /static
+                staticFileConfig.precompress = false; // Optional: disable precompress
+                staticFileConfig.headers = Map.of("Cache-Control", "max-age=600"); // Optional: add cache headers
+            });
         });
 
         // Start all bots
@@ -157,6 +163,43 @@ public class GameDaemonDeckApp {
         app.delete("/api/discord/bots/{name}", ctx -> {
             discordService.deleteBot(ctx.pathParam("name"));
             ctx.status(HttpStatus.NO_CONTENT);
+        });
+
+        // API for updating configuration
+        app.post("/api/config", ctx -> {
+            String steamCmdPath = ctx.formParam("steamCmdPath");
+            String sessionTimeoutSecondsParam = ctx.formParam("sessionTimeoutSeconds");
+
+            if (steamCmdPath == null || steamCmdPath.isBlank() ||
+                sessionTimeoutSecondsParam == null || sessionTimeoutSecondsParam.isBlank()) {
+                ctx.status(HttpStatus.BAD_REQUEST).result("SteamCMD Path and Session Timeout are required.");
+                return;
+            }
+
+            int sessionTimeoutSeconds;
+            try {
+                sessionTimeoutSeconds = Integer.parseInt(sessionTimeoutSecondsParam);
+                if (sessionTimeoutSeconds <= 0) {
+                    ctx.status(HttpStatus.BAD_REQUEST).result("Session Timeout must be a positive integer.");
+                    return;
+                }
+            } catch (NumberFormatException e) {
+                ctx.status(HttpStatus.BAD_REQUEST).result("Session Timeout must be a valid number.");
+                return;
+            }
+
+            Optional<Configuration> configOptional = configStore.getConfiguration();
+            if (configOptional.isEmpty()) {
+                ctx.status(HttpStatus.INTERNAL_SERVER_ERROR).result("Configuration not found.");
+                return;
+            }
+
+            Configuration config = configOptional.get();
+            config.setSteamCmdPath(steamCmdPath);
+            config.setSessionTimeoutSeconds(sessionTimeoutSeconds);
+            configStore.saveConfiguration(config);
+
+            ctx.status(HttpStatus.OK).result("Configuration updated successfully.");
         });
 
         app.get("/login", ctx -> {
