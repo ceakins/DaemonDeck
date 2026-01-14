@@ -130,12 +130,12 @@ public class GameDaemonDeckApp {
         });
 
         // Authenticated routes
+        // Authenticated routes
         app.get("/", ctx -> {
             configStore.getConfiguration().ifPresent(config -> {
                 ctx.render("templates/index.html", Map.of(
-                    "title", "Welcome to Game Daemon Deck",
-                    "sessionTimeoutSeconds", config.getSessionTimeoutSeconds(),
-                    "steamCmdPath", config.getSteamCmdPath() // Add steamCmdPath
+                    "title", "Game Daemon Deck - Dashboard"
+                    // Other config values are not directly used in the main dashboard view, so remove them
                 ));
             });
         });
@@ -200,6 +200,17 @@ public class GameDaemonDeckApp {
             configStore.saveConfiguration(config);
 
             ctx.status(HttpStatus.OK).result("Configuration updated successfully.");
+        });
+
+        // Settings page
+        app.get("/settings", ctx -> {
+            configStore.getConfiguration().ifPresent(config -> {
+                ctx.render("templates/settings.html", Map.of(
+                    "title", "Game Daemon Deck - Settings",
+                    "sessionTimeoutSeconds", config.getSessionTimeoutSeconds(),
+                    "steamCmdPath", config.getSteamCmdPath()
+                ));
+            });
         });
 
         app.get("/login", ctx -> {
