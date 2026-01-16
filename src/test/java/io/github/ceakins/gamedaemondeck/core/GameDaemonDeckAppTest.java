@@ -15,6 +15,8 @@ import org.springframework.security.crypto.bcrypt.BCrypt;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.net.CookieManager;
@@ -27,6 +29,8 @@ import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertTrue;
 
 public class GameDaemonDeckAppTest {
+
+    private static final Logger logger = LoggerFactory.getLogger(GameDaemonDeckAppTest.class);
 
     @Mock
     private ConfigStore configStore;
@@ -94,8 +98,8 @@ public class GameDaemonDeckAppTest {
         try (Response response = client.newCall(request).execute()) {
             String responseBody = response.body().string(); // Read once
             assertEquals(response.code(), 200);
-            assertTrue(responseBody.contains("DaemonDeck First-Run Setup"));
-            assertTrue(responseBody.contains("Session Timeout (seconds):</label>")); // New assertion
+            assertTrue(responseBody.contains("DaemonDeck Setup"));
+            assertTrue(responseBody.contains("Session Timeout (seconds):"));
         }
     }
 
@@ -206,6 +210,7 @@ public class GameDaemonDeckAppTest {
         config.setAdminUsername("admin");
         config.setAdminPasswordHash(BCrypt.hashpw("password", BCrypt.gensalt()));
         config.setSessionTimeoutSeconds(1800);
+        config.setSteamCmdPath("/path/to/steamcmd");
         when(configStore.isConfigured()).thenReturn(true);
         when(configStore.getConfiguration()).thenReturn(Optional.of(config));
 

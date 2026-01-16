@@ -5,11 +5,12 @@
 
     <groupId>io.github.ceakins</groupId>
     <artifactId>gamedaemondeck</artifactId>
-    <version>1.0-SNAPSHOT</version>
+    <version>0.0.1-SNAPSHOT</version>
 
     <properties>
         <maven.compiler.source>21</maven.compiler.source>
         <maven.compiler.target>21</maven.compiler.target>
+        <jpackage.type>exe</jpackage.type>
     </properties>
 
     <dependencies>
@@ -145,13 +146,105 @@
                 </executions>
             </plugin>
             <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <version>3.6.1</version>
+                <executions>
+                    <execution>
+                        <id>copy-dependencies</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>copy-dependencies</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.build.directory}/libs</outputDirectory>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>3.3.0</version>
+                <configuration>
+                    <archive>
+                        <manifest>
+                            <addClasspath>true</addClasspath>
+                            <classpathPrefix>libs/</classpathPrefix>
+                            <mainClass>io.github.ceakins.gamedaemondeck.core.GameDaemonDeckApp</mainClass>
+                        </manifest>
+                    </archive>
+                    <outputDirectory>${project.build.directory}/libs</outputDirectory>
+                </configuration>
+            </plugin>
+            <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>exec-maven-plugin</artifactId>
                 <version>3.2.0</version>
+                <executions>
+                    <execution>
+                        <id>jpackage</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <executable>jpackage</executable>
+                            <arguments>
+                                <argument>--input</argument>
+                                <argument>${project.build.directory}/libs</argument>
+                                <argument>--dest</argument>
+                                <argument>${project.build.directory}/dist</argument>
+                                <argument>--name</argument>
+                                <argument>GameDaemonDeck</argument>
+                                <argument>--main-jar</argument>
+                                <argument>${project.build.finalName}.jar</argument>
+                                <argument>--main-class</argument>
+                                <argument>io.github.ceakins.gamedaemondeck.core.GameDaemonDeckApp</argument>
+                                <argument>--type</argument>
+                                <argument>${jpackage.type}</argument>
+                                <argument>--vendor</argument>
+                                <argument>ceakins</argument>
+                                <argument>--copyright</argument>
+                                <argument>Copyright 2026 Charles L. Eakins</argument>
+                                <argument>--description</argument>
+                                <argument>Game Server Manager</argument>
+                                <argument>--app-version</argument>
+                                <argument>0.0.1</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                </executions>
                 <configuration>
                     <mainClass>io.github.ceakins.gamedaemondeck.core.GameDaemonDeckApp</mainClass>
                 </configuration>
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <profile>
+            <id>linux</id>
+            <activation>
+                <os>
+                    <family>unix</family>
+                    <name>linux</name>
+                </os>
+            </activation>
+            <properties>
+                <jpackage.type>app-image</jpackage.type>
+            </properties>
+        </profile>
+        <profile>
+            <id>windows</id>
+            <activation>
+                <os>
+                    <family>windows</family>
+                </os>
+            </activation>
+            <properties>
+                <jpackage.type>app-image</jpackage.type>
+            </properties>
+        </profile>
+    </profiles>
 </project>
