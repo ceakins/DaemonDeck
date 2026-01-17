@@ -8,14 +8,20 @@ import io.github.ceakins.gamedaemondeck.db.GameServer;
 import io.javalin.Javalin;
 import io.javalin.http.HttpStatus;
 import io.javalin.rendering.template.JavalinThymeleaf;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.crypto.bcrypt.BCrypt;
 
-import java.util.Base64;
-import java.util.Collections;
-import java.util.Map;
-import java.util.HashMap;
-import java.util.Optional;
-import java.util.StringTokenizer;
+import java.awt.FileDialog;
+import java.awt.Frame;
+import java.awt.EventQueue;
+import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.*;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class GameDaemonDeckApp {
 
@@ -23,6 +29,7 @@ public class GameDaemonDeckApp {
     private final DiscordService discordService;
     private final PluginManager pluginManager;
     public final io.javalin.Javalin app;
+    private static final Logger logger = LoggerFactory.getLogger(GameDaemonDeckApp.class);
 
     public GameDaemonDeckApp() {
         this(ConfigStore.getInstance(), new DiscordService(ConfigStore.getInstance()), new PluginManager());
@@ -45,7 +52,7 @@ public class GameDaemonDeckApp {
 
         // Add error handlers directly on the app instance
         app.exception(Exception.class, (e, ctx) -> {
-            e.printStackTrace();
+            logger.error("{}", e);
             ctx.render("templates/error.html", Map.of(
                 "title", "Game Daemon Deck - Error",
                 "header", "An Unexpected Error Occurred",
@@ -222,7 +229,10 @@ public class GameDaemonDeckApp {
             String serverPath = ctx.formParam("serverPath");
             String commandLine = ctx.formParam("commandLine");
 
-            System.out.println("Saving server config for " + serverName + " with path " + serverPath + " and command line " + commandLine);
+            logger.info("Saving server config for {} with path {} and command line {}",
+                    serverName,
+                    serverPath,
+                    commandLine);
 
             configStore.getServers().stream()
                 .filter(s -> s.getName().equals(serverName))
@@ -246,6 +256,53 @@ public class GameDaemonDeckApp {
             } else {
                 ctx.json(Collections.emptyList());
             }
+        });
+
+        app.get("/api/files", ctx -> {
+            String pathParam = ctx.queryParam("path");
+            Path path;
+            if (pathParam == null || pathParam.isBlank() || pathParam.equals(".")) {
+                path = Paths.get(".").toAbsolutePath().normalize();
+            } else {
+                path = Paths.get(pathParam).toAbsolutePath().normalize();
+            }
+
+            if (!Files.exists(path) || !Files.isDirectory(path)) {
+                // Fallback to current directory if invalid
+                path = Paths.get(".").toAbsolutePath().normalize();
+            }
+
+            List<Map<String, Object>> files = new ArrayList<>();
+            // Add parent directory entry if not root
+            if (path.getParent() != null) {
+                files.add(Map.of(
+                    "name", "..",
+                    "path", path.getParent().toString(),
+                    "isDirectory", true
+                ));
+            }
+
+            try (Stream<Path> stream = Files.list(path)) {
+                List<Map<String, Object>> entries = stream
+                    .map(p -> {
+                        Map<String, Object> map = new HashMap<>();
+                        map.put("name", p.getFileName().toString());
+                        map.put("path", p.toAbsolutePath().toString());
+                        map.put("isDirectory", Files.isDirectory(p));
+                        return map;
+                    })
+                    .collect(Collectors.toList());
+                files.addAll(entries);
+            } catch (Exception e) {
+                logger.error("Error listing files", e);
+                ctx.status(HttpStatus.INTERNAL_SERVER_ERROR);
+                return;
+            }
+
+            ctx.json(Map.of(
+                "currentPath", path.toString(),
+                "files", files
+            ));
         });
 
         // Discord Webhook routes
