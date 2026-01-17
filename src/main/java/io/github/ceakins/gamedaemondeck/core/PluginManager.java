@@ -1,10 +1,10 @@
 package io.github.ceakins.gamedaemondeck.core;
 
 import io.github.ceakins.gamedaemondeck.plugins.GamePlugin;
-import io.github.ceakins.gamedaemondeck.plugins.SevenDaysToDiePlugin;
-
 import java.util.ArrayList;
 import java.util.List;
+import java.util.ServiceLoader;
+import java.util.stream.Collectors;
 
 public class PluginManager {
 
@@ -12,9 +12,10 @@ public class PluginManager {
 
     public PluginManager() {
         this.plugins = new ArrayList<>();
-        // For now, we'll manually register the plugins.
-        // In the future, this could be done via reflection or a service loader.
-        this.plugins.add(new SevenDaysToDiePlugin());
+        ServiceLoader<GamePlugin> loader = ServiceLoader.load(GamePlugin.class);
+        for (GamePlugin plugin : loader) {
+            plugins.add(plugin);
+        }
     }
 
     public List<GamePlugin> getPlugins() {
