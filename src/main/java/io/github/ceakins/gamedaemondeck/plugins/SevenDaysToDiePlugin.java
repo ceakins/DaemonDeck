@@ -34,4 +34,15 @@ public class SevenDaysToDiePlugin implements GamePlugin {
                 new ConfigField("commandLine", "Command Line Arguments", "text", "-batchmode -nographics -dedicated -configfile=<locationnotset>")
         );
     }
+
+    @Override
+    public List<LogHighlighter> getLogHighlighters() {
+        return Arrays.asList(
+            new LogHighlighter(".*INF.*", "#28a745"), // Green for Info
+            new LogHighlighter(".*WRN.*", "#ffc107"), // Yellow for Warning (short)
+            new LogHighlighter(".*Warning.*", "#ffc107"), // Yellow for Warning (long)
+            new LogHighlighter(".*ERR.*", "#dc3545"),  // Red for Error
+            new LogHighlighter(".*Error.*", "#dc3545")   // Red for Error (long)
+        );
+    }
 }

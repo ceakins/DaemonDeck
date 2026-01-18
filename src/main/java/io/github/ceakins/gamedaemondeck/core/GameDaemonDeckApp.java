@@ -5,6 +5,8 @@ import io.github.ceakins.gamedaemondeck.db.Configuration;
 import io.github.ceakins.gamedaemondeck.db.DiscordBot;
 import io.github.ceakins.gamedaemondeck.db.DiscordWebhook;
 import io.github.ceakins.gamedaemondeck.db.GameServer;
+import io.github.ceakins.gamedaemondeck.plugins.GamePlugin;
+import io.github.ceakins.gamedaemondeck.plugins.LogHighlighter;
 import io.javalin.Javalin;
 import io.javalin.http.HttpStatus;
 import io.javalin.rendering.template.JavalinThymeleaf;
@@ -24,6 +26,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -37,6 +40,9 @@ public class GameDaemonDeckApp {
     public final io.javalin.Javalin app;
     private static final Logger logger = LoggerFactory.getLogger(GameDaemonDeckApp.class);
     private final Map<String, Process> runningServerProcesses = new ConcurrentHashMap<>();
+    // Store logs for each server: Map<ServerName, Queue<LogLine>>
+    private final Map<String, Queue<String>> serverLogs = new ConcurrentHashMap<>();
+    private static final int MAX_LOG_LINES = 1000;
 
     public GameDaemonDeckApp() {
         this(ConfigStore.getInstance(), new DiscordService(ConfigStore.getInstance()), new PluginManager());
@@ -313,13 +319,24 @@ public class GameDaemonDeckApp {
                     server.setPid(pid);
                     configStore.saveServer(server);
                     runningServerProcesses.put(server.getName(), process);
+                    
+                    // Initialize log queue for this server
+                    serverLogs.put(server.getName(), new ConcurrentLinkedQueue<>());
 
                     // Start a thread to read and log the server's output
                     new Thread(() -> {
                         try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
                             String line;
                             while ((line = reader.readLine()) != null) {
-                                logger.info("[{}] {}", serverName, line);
+                                // Store log line in memory
+                                Queue<String> logs = serverLogs.get(serverName);
+                                if (logs != null) {
+                                    logs.add(line);
+                                    if (logs.size() > MAX_LOG_LINES) {
+                                        logs.poll(); // Remove oldest
+                                    }
+                                }
+                                // Removed: logger.info("[{}] {}", serverName, line); // Don't log to main app log anymore
                             }
                         } catch (IOException e) {
                             logger.error("Error reading output from server {}", serverName, e);
@@ -335,6 +352,7 @@ public class GameDaemonDeckApp {
                             server.setPid(null);
                             configStore.saveServer(server);
                             runningServerProcesses.remove(server.getName());
+                            // Keep logs for a while or clear them? For now, keep them so user can see why it crashed.
                         } catch (InterruptedException e) {
                             logger.error("Error waiting for server process", e);
                         }
@@ -409,6 +427,35 @@ public class GameDaemonDeckApp {
                 })
                 .collect(Collectors.toList());
             ctx.json(statuses);
+        });
+        
+        app.get("/api/servers/{name}/logs", ctx -> {
+            String serverName = ctx.pathParam("name");
+            Queue<String> logs = serverLogs.get(serverName);
+            if (logs != null) {
+                ctx.json(logs);
+            } else {
+                ctx.json(Collections.emptyList());
+            }
+        });
+
+        app.get("/api/servers/{name}/log-highlighters", ctx -> {
+            String serverName = ctx.pathParam("name");
+            Optional<GameServer> serverOpt = configStore.getServers().stream()
+                .filter(s -> s.getName().equals(serverName))
+                .findFirst();
+
+            if (serverOpt.isPresent()) {
+                GameServer server = serverOpt.get();
+                GamePlugin plugin = pluginManager.getPlugin(server.getPluginName());
+                if (plugin != null) {
+                    ctx.json(plugin.getLogHighlighters());
+                } else {
+                    ctx.json(Collections.emptyList());
+                }
+            } else {
+                ctx.status(HttpStatus.NOT_FOUND).result("Server not found");
+            }
         });
 
         app.get("/servers/config-fields", ctx -> {

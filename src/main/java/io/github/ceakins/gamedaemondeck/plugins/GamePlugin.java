@@ -18,4 +18,8 @@ public interface GamePlugin {
     default List<ConfigField> getConfigFields() {
         return Collections.emptyList();
     }
+
+    default List<LogHighlighter> getLogHighlighters() {
+        return Collections.emptyList();
+    }
 }
