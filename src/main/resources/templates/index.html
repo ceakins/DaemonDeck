@@ -298,6 +298,32 @@
         </div>
     </div>
 
+    <!-- Create Config Modal -->
+    <div class="modal fade" id="createConfigModal" tabindex="-1" aria-labelledby="createConfigModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="createConfigModalLabel">Create Configuration File</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="createConfigForm">
+                        <div class="mb-3">
+                            <label for="configFileName" class="form-label">Filename (without extension)</label>
+                            <input type="text" class="form-control" id="configFileName" name="fileName" value="serverconfig" required>
+                        </div>
+                        <hr>
+                        <div id="createConfigFields"></div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="createConfigSaveBtn">Save File</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- File Browser Modal -->
     <div class="modal fade" id="fileBrowserModal" tabindex="-1" aria-labelledby="fileBrowserModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-lg">
@@ -631,6 +657,11 @@
             // --- End File Browser Logic ---
 
             const serverConfigModal = document.getElementById('serverConfigModal');
+            const createConfigModal = new bootstrap.Modal(document.getElementById('createConfigModal'));
+            let currentConfigServerName = null;
+            let currentConfigPluginName = null;
+            let currentConfigTargetInput = null;
+
             serverConfigModal.addEventListener('show.bs.modal', function (event) {
                 const button = event.relatedTarget;
                 const serverName = button.getAttribute('data-bs-server-name');
@@ -638,11 +669,13 @@
                 const serverNameInput = serverConfigModal.querySelector('#configServerName');
                 modalTitle.textContent = 'Configure ' + serverName;
                 serverNameInput.value = serverName;
+                currentConfigServerName = serverName;
 
                 // Find the server object from the servers list
                 const servers = /*[[${servers}]]*/ [];
                 const server = servers.find(s => s.name === serverName);
                 if (server) {
+                    currentConfigPluginName = server.pluginName;
                     fetch('/servers/config-fields?pluginName=' + server.pluginName)
                         .then(response => response.json())
                         .then(configFields => {
@@ -673,6 +706,25 @@
                                     inputGroup.classList.add('input-group');
                                     inputGroup.appendChild(input);
 
+                                    // Create Config Button (only for commandLine or specific fields if needed, but let's add it generally for path fields)
+                                    // Actually, let's add it specifically if the field name suggests a config file, or just add it to the commandLine field as requested.
+                                    // The user said "before you pick a config...".
+                                    // Let's add it to any field that is NOT serverPath but IS a path field.
+                                    if (field.name !== 'serverPath') {
+                                        const createBtn = document.createElement('button');
+                                        createBtn.classList.add('btn', 'btn-outline-primary');
+                                        createBtn.type = 'button';
+                                        createBtn.innerHTML = '<i class="bi bi-file-earmark-plus"></i>';
+                                        createBtn.title = "Create/Edit Config File";
+                                        createBtn.addEventListener('click', () => {
+                                            currentConfigTargetInput = input;
+                                            openCreateConfigModal();
+                                        });
+                                        // Store reference to disable/enable
+                                        field.createBtn = createBtn;
+                                        inputGroup.appendChild(createBtn);
+                                    }
+
                                     const button = document.createElement('button');
                                     button.classList.add('btn', 'btn-outline-secondary');
                                     button.type = 'button';
@@ -698,17 +750,20 @@
                                 if (field.button) { // Only for fields with file pickers
                                     const button = field.button;
                                     const input = field.input;
+                                    const createBtn = field.createBtn;
 
                                     // Logic to disable button if serverPath is empty and this is not serverPath
                                     if (field.name !== 'serverPath') {
                                         if (serverPathInput && !serverPathInput.value) {
                                             button.disabled = true;
+                                            if (createBtn) createBtn.disabled = true;
                                         }
                                         
                                         // Listen for changes on serverPath to enable/disable
                                         if (serverPathInput) {
                                             serverPathInput.addEventListener('input', () => {
                                                 button.disabled = !serverPathInput.value;
+                                                if (createBtn) createBtn.disabled = !serverPathInput.value;
                                             });
                                         }
                                     }
@@ -749,6 +804,188 @@
                             });
                         });
                 }
+            });
+
+            // --- Create Config Modal Logic ---
+            function openCreateConfigModal() {
+                // Check if we are editing an existing config
+                let existingValues = null;
+                if (currentConfigTargetInput && currentConfigTargetInput.value && !currentConfigTargetInput.value.includes('<locationnotset>')) {
+                    // Try to fetch existing values
+                    // We need to wait for this fetch before rendering the form
+                    fetch('/api/servers/' + currentConfigServerName + '/parse-config', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            commandLine: currentConfigTargetInput.value
+                        })
+                    })
+                    .then(response => {
+                        if (response.ok) return response.json();
+                        return null; // Ignore errors (e.g. file not found or invalid path)
+                    })
+                    .then(values => {
+                        existingValues = values;
+                        renderConfigForm(existingValues);
+                    })
+                    .catch(err => {
+                        console.warn('Could not parse existing config:', err);
+                        renderConfigForm(null);
+                    });
+                } else {
+                    renderConfigForm(null);
+                }
+            }
+
+            function renderConfigForm(existingValues) {
+                const modalTitle = document.getElementById('createConfigModalLabel');
+                const saveBtn = document.getElementById('createConfigSaveBtn');
+                
+                if (existingValues) {
+                    modalTitle.textContent = 'Edit Configuration File';
+                    saveBtn.textContent = 'Save Changes';
+                    document.getElementById('configFileName').value = existingValues.fileName || 'serverconfig';
+                } else {
+                    modalTitle.textContent = 'Create Configuration File';
+                    saveBtn.textContent = 'Create File';
+                    document.getElementById('configFileName').value = 'serverconfig';
+                }
+
+                fetch('/api/plugins/' + currentConfigPluginName + '/server-config-fields')
+                    .then(response => {
+                        if (!response.ok) throw new Error('Failed to fetch config fields');
+                        return response.json();
+                    })
+                    .then(fields => {
+                        const container = document.getElementById('createConfigFields');
+                        container.innerHTML = '';
+                        
+                        fields.forEach(field => {
+                            const div = document.createElement('div');
+                            div.classList.add('mb-3');
+                            
+                            const label = document.createElement('label');
+                            label.classList.add('form-label');
+                            label.textContent = field.label;
+                            label.htmlFor = 'conf_' + field.name;
+                            div.appendChild(label);
+                            
+                            if (field.description) {
+                                const desc = document.createElement('div');
+                                desc.classList.add('form-text');
+                                desc.textContent = field.description;
+                                div.appendChild(desc);
+                            }
+
+                            let input;
+                            // Determine value: existing value > default value > empty
+                            let value = field.defaultValue || '';
+                            if (existingValues && existingValues[field.name] !== undefined) {
+                                value = existingValues[field.name];
+                            }
+
+                            if (field.type === 'select') {
+                                input = document.createElement('select');
+                                input.classList.add('form-select');
+                                field.options.forEach(opt => {
+                                    const option = document.createElement('option');
+                                    option.value = opt;
+                                    option.textContent = opt;
+                                    if (opt === value) option.selected = true;
+                                    input.appendChild(option);
+                                });
+                            } else if (field.type === 'boolean') {
+                                input = document.createElement('select');
+                                input.classList.add('form-select');
+                                const optTrue = document.createElement('option');
+                                optTrue.value = 'true';
+                                optTrue.textContent = 'True';
+                                const optFalse = document.createElement('option');
+                                optFalse.value = 'false';
+                                optFalse.textContent = 'False';
+                                if (String(value).toLowerCase() === 'true') optTrue.selected = true;
+                                else optFalse.selected = true;
+                                input.appendChild(optTrue);
+                                input.appendChild(optFalse);
+                            } else {
+                                input = document.createElement('input');
+                                input.classList.add('form-control');
+                                // Handle password type
+                                input.type = field.type === 'password' ? 'password' : (field.type === 'number' ? 'number' : 'text');
+                                input.value = value;
+                            }
+                            
+                            input.name = field.name;
+                            input.id = 'conf_' + field.name;
+                            div.appendChild(input);
+                            container.appendChild(div);
+                        });
+                        
+                        createConfigModal.show();
+                    })
+                    .catch(err => {
+                        console.error(err);
+                        alert('Error loading config fields: ' + err.message);
+                    });
+            }
+
+            document.getElementById('createConfigSaveBtn').addEventListener('click', () => {
+                const form = document.getElementById('createConfigForm');
+                const formData = new FormData(form);
+                const data = {};
+                formData.forEach((value, key) => data[key] = value);
+
+                // Get the current serverPath from the main form
+                const serverConfigFields = document.getElementById('serverConfigFields');
+                const serverPathInput = serverConfigFields.querySelector('#serverPath');
+                if (serverPathInput) {
+                    data['serverPath'] = serverPathInput.value;
+                }
+
+                fetch('/api/servers/' + currentConfigServerName + '/create-config', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                })
+                .then(response => {
+                    if (!response.ok) return response.text().then(text => { throw new Error(text) });
+                    return response.json();
+                })
+                .then(result => {
+                    if (currentConfigTargetInput) {
+                        let finalPath = result.path;
+                        if (finalPath.includes(' ')) {
+                            finalPath = '"' + finalPath + '"';
+                        }
+                        
+                        if (currentConfigTargetInput.id === 'commandLine') {
+                            if (currentConfigTargetInput.value.includes('<locationnotset>')) {
+                                currentConfigTargetInput.value = currentConfigTargetInput.value.replace('<locationnotset>', finalPath);
+                            } else {
+                                // Regex to replace existing -configfile value
+                                // Matches -configfile="..." or -configfile=...
+                                const regex = /-configfile=(?:"[^"]*"|[^"\s]+)/;
+                                if (regex.test(currentConfigTargetInput.value)) {
+                                    currentConfigTargetInput.value = currentConfigTargetInput.value.replace(regex, `-configfile=${finalPath}`);
+                                } else {
+                                    // If not found, append it
+                                     currentConfigTargetInput.value += ` -configfile=${finalPath}`;
+                                }
+                            }
+                        } else {
+                            currentConfigTargetInput.value = finalPath;
+                        }
+                        // Trigger input event
+                        currentConfigTargetInput.dispatchEvent(new Event('input'));
+                    }
+                    createConfigModal.hide();
+                    alert('Configuration file created successfully!');
+                })
+                .catch(err => alert('Error creating config: ' + err.message));
             });
 
             const urlParams = new URLSearchParams(window.location.search);

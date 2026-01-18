@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 public interface GamePlugin {
 
@@ -21,5 +22,21 @@ public interface GamePlugin {
 
     default List<LogHighlighter> getLogHighlighters() {
         return Collections.emptyList();
+    }
+
+    default List<ServerConfigField> getServerConfigFields() {
+        return Collections.emptyList();
+    }
+
+    default void generateConfigFile(Map<String, String> values, Path serverDir, String fileName) throws IOException {
+        // Default implementation does nothing
+    }
+
+    default Map<String, String> parseConfigFile(Path configFile) throws IOException {
+        return Collections.emptyMap();
+    }
+
+    default Path getConfigFileFromParams(Map<String, String> params) {
+        return null;
     }
 }

@@ -458,6 +458,127 @@ public class GameDaemonDeckApp {
             }
         });
 
+        app.get("/api/plugins/{name}/server-config-fields", ctx -> {
+            String pluginName = ctx.pathParam("name");
+            GamePlugin plugin = pluginManager.getPlugin(pluginName);
+            if (plugin != null) {
+                ctx.json(plugin.getServerConfigFields());
+            } else {
+                ctx.status(HttpStatus.NOT_FOUND).result("Plugin not found");
+            }
+        });
+
+        app.post("/api/servers/{name}/create-config", ctx -> {
+            String serverName = ctx.pathParam("name");
+            Optional<GameServer> serverOpt = configStore.getServers().stream()
+                .filter(s -> s.getName().equals(serverName))
+                .findFirst();
+
+            if (serverOpt.isPresent()) {
+                GameServer server = serverOpt.get();
+                GamePlugin plugin = pluginManager.getPlugin(server.getPluginName());
+                if (plugin != null) {
+                    Map<String, String> values = ctx.bodyAsClass(Map.class);
+                    String fileName = values.get("fileName");
+                    if (fileName == null || fileName.isBlank()) {
+                        ctx.status(HttpStatus.BAD_REQUEST).result("Filename is required");
+                        return;
+                    }
+
+                    // Use serverPath from request body if available, otherwise fallback to stored
+                    String serverPath = values.get("serverPath");
+                    if (serverPath == null || serverPath.isBlank()) {
+                        serverPath = server.getServerPath();
+                    }
+
+                    if (serverPath == null || serverPath.isBlank()) {
+                        ctx.status(HttpStatus.BAD_REQUEST).result("Server path must be set first");
+                        return;
+                    }
+
+                    if (serverPath.startsWith("\"") && serverPath.endsWith("\"")) {
+                        serverPath = serverPath.substring(1, serverPath.length() - 1);
+                    }
+                    Path serverDir = Paths.get(serverPath).getParent();
+
+                    try {
+                        plugin.generateConfigFile(values, serverDir, fileName);
+                        
+                        // Return the full path to the created file
+                        String fullPath = serverDir.resolve(fileName.endsWith(".xml") ? fileName : fileName + ".xml").toAbsolutePath().toString();
+                        ctx.json(Map.of("path", fullPath));
+                    } catch (IOException e) {
+                        logger.error("Failed to create config file", e);
+                        ctx.status(HttpStatus.INTERNAL_SERVER_ERROR).result("Failed to create config file: " + e.getMessage());
+                    }
+                } else {
+                    ctx.status(HttpStatus.NOT_FOUND).result("Plugin not found");
+                }
+            } else {
+                ctx.status(HttpStatus.NOT_FOUND).result("Server not found");
+            }
+        });
+
+        app.post("/api/servers/{name}/parse-config", ctx -> {
+            String serverName = ctx.pathParam("name");
+            Optional<GameServer> serverOpt = configStore.getServers().stream()
+                .filter(s -> s.getName().equals(serverName))
+                .findFirst();
+
+            if (serverOpt.isPresent()) {
+                GameServer server = serverOpt.get();
+                GamePlugin plugin = pluginManager.getPlugin(server.getPluginName());
+                if (plugin != null) {
+                    // Read parameters from request body if available, otherwise use stored server config
+                    Map<String, String> requestBody = ctx.bodyAsClass(Map.class);
+                    Map<String, String> params = new HashMap<>();
+                    
+                    if (requestBody != null && requestBody.containsKey("commandLine")) {
+                        params.put("commandLine", requestBody.get("commandLine"));
+                    } else {
+                        params.put("commandLine", server.getCommandLine());
+                    }
+                    
+                    Path configPath = plugin.getConfigFileFromParams(params);
+                    if (configPath != null) {
+                        // If path is relative, resolve against server directory
+                        if (!configPath.isAbsolute()) {
+                            String serverPath = server.getServerPath();
+                            if (serverPath.startsWith("\"") && serverPath.endsWith("\"")) {
+                                serverPath = serverPath.substring(1, serverPath.length() - 1);
+                            }
+                            Path serverDir = Paths.get(serverPath).getParent();
+                            configPath = serverDir.resolve(configPath);
+                        }
+
+                        if (Files.exists(configPath)) {
+                            try {
+                                Map<String, String> values = plugin.parseConfigFile(configPath);
+                                // Add filename to values so frontend can populate it
+                                String fileName = configPath.getFileName().toString();
+                                if (fileName.endsWith(".xml")) {
+                                    fileName = fileName.substring(0, fileName.length() - 4);
+                                }
+                                values.put("fileName", fileName);
+                                ctx.json(values);
+                            } catch (IOException e) {
+                                logger.error("Failed to parse config file", e);
+                                ctx.status(HttpStatus.INTERNAL_SERVER_ERROR).result("Failed to parse config file: " + e.getMessage());
+                            }
+                        } else {
+                            ctx.status(HttpStatus.NOT_FOUND).result("Config file not found at: " + configPath);
+                        }
+                    } else {
+                        ctx.status(HttpStatus.BAD_REQUEST).result("No config file found in server parameters");
+                    }
+                } else {
+                    ctx.status(HttpStatus.NOT_FOUND).result("Plugin not found");
+                }
+            } else {
+                ctx.status(HttpStatus.NOT_FOUND).result("Server not found");
+            }
+        });
+
         app.get("/servers/config-fields", ctx -> {
             String pluginName = ctx.queryParam("pluginName");
             if (pluginName != null) {
