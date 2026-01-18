@@ -15,11 +15,17 @@ import org.springframework.security.crypto.bcrypt.BCrypt;
 import java.awt.FileDialog;
 import java.awt.Frame;
 import java.awt.EventQueue;
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.IOException;
+import java.io.InputStreamReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -30,6 +36,7 @@ public class GameDaemonDeckApp {
     private final PluginManager pluginManager;
     public final io.javalin.Javalin app;
     private static final Logger logger = LoggerFactory.getLogger(GameDaemonDeckApp.class);
+    private final Map<String, Process> runningServerProcesses = new ConcurrentHashMap<>();
 
     public GameDaemonDeckApp() {
         this(ConfigStore.getInstance(), new DiscordService(ConfigStore.getInstance()), new PluginManager());
@@ -244,6 +251,164 @@ public class GameDaemonDeckApp {
                 });
 
             ctx.redirect("/");
+        });
+
+        app.post("/servers/{name}/start", ctx -> {
+            String serverName = ctx.pathParam("name");
+            Optional<GameServer> serverOpt = configStore.getServers().stream()
+                .filter(s -> s.getName().equals(serverName))
+                .findFirst();
+
+            if (serverOpt.isPresent()) {
+                GameServer server = serverOpt.get();
+                if (server.isRunning()) {
+                    ctx.status(HttpStatus.BAD_REQUEST).result("Server is already running");
+                    return;
+                }
+
+                if (server.getServerPath() == null || server.getServerPath().isBlank()) {
+                    ctx.status(HttpStatus.BAD_REQUEST).result("Server path not configured");
+                    return;
+                }
+
+                try {
+                    List<String> command = new ArrayList<>();
+                    
+                    // Clean the server path (remove quotes if present)
+                    String serverPath = server.getServerPath();
+                    if (serverPath.startsWith("\"") && serverPath.endsWith("\"")) {
+                        serverPath = serverPath.substring(1, serverPath.length() - 1);
+                    }
+                    command.add(serverPath);
+
+                    if (server.getCommandLine() != null && !server.getCommandLine().isBlank()) {
+                        // Use regex to split arguments respecting quotes
+                        Matcher matcher = Pattern.compile("([^\"]\\S*|\".+?\")\\s*").matcher(server.getCommandLine());
+                        while (matcher.find()) {
+                            String arg = matcher.group(1);
+                            // Remove surrounding quotes if present
+                            if (arg.startsWith("\"") && arg.endsWith("\"")) {
+                                arg = arg.substring(1, arg.length() - 1);
+                            }
+                            command.add(arg);
+                        }
+                    }
+
+                    logger.info("Starting server {} with command: {}", serverName, command);
+
+                    ProcessBuilder pb = new ProcessBuilder(command);
+                    // Set working directory to the server executable's directory
+                    File serverFile = new File(serverPath);
+                    if (serverFile.getParentFile() != null) {
+                        pb.directory(serverFile.getParentFile());
+                    }
+                    
+                    // Redirect error stream to output stream so we can read both
+                    pb.redirectErrorStream(true);
+                    
+                    Process process = pb.start();
+                    long pid = process.pid();
+                    
+                    server.setRunning(true);
+                    server.setPid(pid);
+                    configStore.saveServer(server);
+                    runningServerProcesses.put(server.getName(), process);
+
+                    // Start a thread to read and log the server's output
+                    new Thread(() -> {
+                        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                            String line;
+                            while ((line = reader.readLine()) != null) {
+                                logger.info("[{}] {}", serverName, line);
+                            }
+                        } catch (IOException e) {
+                            logger.error("Error reading output from server {}", serverName, e);
+                        }
+                    }).start();
+
+                    // Monitor process exit in a separate thread
+                    new Thread(() -> {
+                        try {
+                            int exitCode = process.waitFor();
+                            logger.info("Server {} exited with code {}", server.getName(), exitCode);
+                            server.setRunning(false);
+                            server.setPid(null);
+                            configStore.saveServer(server);
+                            runningServerProcesses.remove(server.getName());
+                        } catch (InterruptedException e) {
+                            logger.error("Error waiting for server process", e);
+                        }
+                    }).start();
+
+                    ctx.status(HttpStatus.OK).result("Server started with PID " + pid);
+                } catch (IOException e) {
+                    logger.error("Failed to start server {}", serverName, e);
+                    ctx.status(HttpStatus.INTERNAL_SERVER_ERROR).result("Failed to start server: " + e.getMessage());
+                }
+            } else {
+                ctx.status(HttpStatus.NOT_FOUND).result("Server not found");
+            }
+        });
+
+        app.post("/servers/{name}/stop", ctx -> {
+            String serverName = ctx.pathParam("name");
+            Optional<GameServer> serverOpt = configStore.getServers().stream()
+                .filter(s -> s.getName().equals(serverName))
+                .findFirst();
+
+            if (serverOpt.isPresent()) {
+                GameServer server = serverOpt.get();
+                if (!server.isRunning()) {
+                    ctx.status(HttpStatus.BAD_REQUEST).result("Server is not running");
+                    return;
+                }
+
+                // Placeholder for graceful shutdown logic (Telnet/RCON)
+                // For now, we'll just kill the process if we have the handle, or use system kill command
+                
+                Process process = runningServerProcesses.get(serverName);
+                if (process != null) {
+                    process.destroy(); // Try graceful termination first
+                } else if (server.getPid() != null) {
+                    // If we don't have the Process object (e.g. after restart), try to kill by PID
+                    try {
+                        String os = System.getProperty("os.name").toLowerCase();
+                        if (os.contains("win")) {
+                            Runtime.getRuntime().exec("taskkill /F /PID " + server.getPid());
+                        } else {
+                            Runtime.getRuntime().exec("kill -9 " + server.getPid());
+                        }
+                    } catch (IOException e) {
+                        logger.error("Failed to kill process by PID", e);
+                    }
+                }
+
+                // Update state immediately for UI feedback, though the process watcher thread should also handle it
+                server.setRunning(false);
+                server.setPid(null);
+                configStore.saveServer(server);
+                runningServerProcesses.remove(serverName);
+
+                ctx.status(HttpStatus.OK).result("Server stopped");
+            } else {
+                ctx.status(HttpStatus.NOT_FOUND).result("Server not found");
+            }
+        });
+
+        app.get("/api/servers/status", ctx -> {
+            List<Map<String, Object>> statuses = configStore.getServers().stream()
+                .map(server -> {
+                    Map<String, Object> status = new HashMap<>();
+                    status.put("name", server.getName());
+                    status.put("running", server.isRunning());
+                    status.put("pid", server.getPid());
+                    // Check if configured
+                    boolean configured = server.getServerPath() != null && !server.getServerPath().isBlank();
+                    status.put("configured", configured);
+                    return status;
+                })
+                .collect(Collectors.toList());
+            ctx.json(statuses);
         });
 
         app.get("/servers/config-fields", ctx -> {

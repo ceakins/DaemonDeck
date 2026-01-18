@@ -14,6 +14,7 @@ public class GameServer implements Serializable {
     private String fontColor;
     private String serverPath;
     private String commandLine;
+    private Long pid;
 
     public GameServer() {
     }
@@ -80,5 +81,13 @@ public class GameServer implements Serializable {
 
     public void setCommandLine(String commandLine) {
         this.commandLine = commandLine;
+    }
+
+    public Long getPid() {
+        return pid;
+    }
+
+    public void setPid(Long pid) {
+        this.pid = pid;
     }
 }
